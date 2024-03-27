@@ -1,0 +1,364 @@
+---
+title: "TikTok Song Popularity"
+author: "Akshay, Amogh, Rahul, Ram"
+date: "2023-04-04"
+output: html_document
+---
+
+#Loading Data
+```{r}
+tiktok <- read.csv(file ="TikTok_songs_2022.csv")
+```
+
+
+```{r}
+summary(tiktok)
+```
+
+
+```{r}
+head(tiktok)
+```
+
+```{r}
+lapply(tiktok,function(x) { length(which(is.na(x)))})
+```
+
+
+```{r}
+install.packages("bnlearn")
+install.packages("igraph")
+library(bnlearn)
+library(igraph)
+```
+```{r}
+tiktok$track_name <- as.factor(tiktok$track_name)
+tiktok$artist_name <- as.factor(tiktok$artist_name)
+tiktok$album <- as.factor(tiktok$album)
+```
+
+```{r}
+head(tiktok)
+```
+
+```{r}
+column_classes <- sapply(tiktok, class)
+#print(column_classes)
+
+tiktok$artist_pop <- as.numeric(tiktok$artist_pop)
+tiktok$track_pop <- as.numeric(tiktok$track_pop)
+tiktok$mode <- as.numeric(tiktok$mode)
+tiktok$key <- as.numeric(tiktok$key)
+tiktok$time_signature <- as.numeric(tiktok$time_signature)
+tiktok$duration_ms <- as.numeric(tiktok$duration_ms)
+
+print(column_classes)
+
+```
+```{r}
+tiktok_num <- data.frame(
+  artist_pop = tiktok$artist_pop,
+  track_pop = tiktok$track_pop,
+  danceability = tiktok$danceability,
+  energy = tiktok$energy,
+  loudness = tiktok$loudness,
+  mode = tiktok$loudness,
+  key = tiktok$key,
+  speechiness = tiktok$speechiness,
+  acousticness = tiktok$acousticness,
+  instrumentalness = tiktok$instrumentalness,
+  liveness = tiktok$liveness,
+  valence = tiktok$valence,
+  tempo = tiktok$tempo,
+  time_signature = tiktok$time_signature,
+  duration_ms = tiktok$duration_ms
+)
+```
+
+
+```{r}
+cor_df = cor(tiktok_num)
+```
+
+```{r}
+library('corrplot')
+corrplot(cor_df)
+```
+
+Independence between Track Popularity and Age - similarly can be done for every other feature.
+
+
+
+```{r}
+library(dplyr)
+
+contingency_table <- table(tiktok_num$duration_ms, tiktok_num$track_pop)
+contingency_table
+```
+
+```{r}
+chisq.test(contingency_table, simulate.p.value=TRUE)
+```
+Since the p-value is greater than the level of significance of 0.05, we fail to reject the null hypothesis. The null hypothesis assumes that there is no significant relationship between the two categorical variables. Therefore, we can conclude that there is insufficient evidence to suggest a significant relationship between the variables based on the observed data.
+
+```{r}
+fisher.test(tiktok_num$duration_ms, tiktok_num$track_pop, simulate.p.value=TRUE)
+```
+
+```{r}
+#install.packages('bnlearn')
+library(bnlearn)
+tiktok_net <- hc(tiktok)
+print(tiktok_net)
+```
+
+
+```{r}
+score_func <- function(data, model) {
+  score <- bic(model, data)
+  if (get.target(model) != "Level") {
+    score <- score + 100
+  }
+  score
+}
+```
+
+```{r}
+plot(tiktok_net)
+```
+
+
+```{r}
+install.packages("igraph")
+library(igraph)
+```
+
+```{r}
+# Convert the learned bnlearn network to an igraph object
+igraph_net <- bnlearn::as.igraph(tiktok_net)
+# Set the layout for the graph
+layout <- layout_with_kk(igraph_net)
+
+# Customize the plot using igraph
+plot.igraph(
+  igraph_net,
+  vertex.size = 20,
+  vertex.label.cex = 0.8,
+  vertex.color = "lightblue",
+  edge.arrow.size = 0.5,
+  edge.curved = 0.2,
+  layout = layout_with_fr(igraph_net)
+)
+
+
+```
+Learn the Bayesian network structure using a constraint-based, score-based, or hybrid algorithm. For example, you can use the Hill-Climbing (HC) algorithm, which is a score-based method.
+
+To investigate the conditional independence relationships between the variables, you can examine the learned structure. The absence of an edge between two variables in the graph indicates conditional independence between them, given the other variables in the graph.
+
+You can also perform additional analyses, such as querying the learned network for specific conditional probabilities or using it for prediction tasks.
+
+
+
+```{r}
+ci <- ci.test(tiktok)
+ci
+```
+
+#building a linear model 
+```{r}
+linear_model = lm(track_pop~.,data = tiktok_num)
+linear_model
+```
+
+```{r}
+summary(linear_model)
+```
+
+
+# Gaussian Model
+
+```{r}
+gauss_model <- glm(track_pop~., data = tiktok_num, family = gaussian(link = "identity"))
+gauss_model
+summary(gauss_model)
+```
+
+---------------------------- end of rahul's---------------------------------
+
+```{r}
+#bn_structure <- hc(tiktok)
+fitted_bn <- bn.fit(tiktok_net, data = tiktok)
+```
+
+Extract the conditional probability tables for each feature given track_pop:
+```{r}
+# Get the list of variables in the dataset
+vars <- names(tiktok)
+
+# Remove 'track_pop' from the list of variables
+vars <- vars[vars != "track_pop"]
+
+# Extract the conditional probability tables for each feature given track_pop
+for (var in vars) {
+  cat("Conditional Probability Table for", var, "given track_pop:\n")
+  cpt <- fitted_bn[[var]]
+  print(cpt)
+  cat("\n")
+}
+
+
+```
+
+
+
+
+
+
+
+
+```{r}
+# Extract conditional probability tables for each variable
+cpt_track_name <- fitted_bn$track_name
+cpt_artist_name <- fitted_bn$artist_name
+cpt_artist_pop <- fitted_bn$artist_pop
+cpt_album <- fitted_bn$album
+cpt_track_pop <- fitted_bn$track_pop
+cpt_danceability <- fitted_bn$danceability
+cpt_energy <- fitted_bn$energy
+cpt_loudness <- fitted_bn$loudness
+cpt_mode <- fitted_bn$mode
+cpt_key <- fitted_bn$key
+cpt_speechiness <- fitted_bn$speechiness
+cpt_acousticness <- fitted_bn$acousticness
+cpt_instrumentalness <- fitted_bn$instrumentalness
+cpt_liveness <- fitted_bn$liveness
+cpt_valence <- fitted_bn$valence
+cpt_tempo <- fitted_bn$tempo
+cpt_time_signature <- fitted_bn$time_signature
+cpt_duration_ms <- fitted_bn$duration_ms
+```
+
+```{r}
+# Print conditional probability tables
+#print(cpt_track_name)
+#print(cpt_artist_name)
+#print(cpt_artist_pop)
+#print(cpt_album)
+print(cpt_track_pop)
+print(cpt_danceability)
+#print(cpt_energy)
+print(cpt_loudness)
+#print(cpt_mode)
+#print(cpt_key)
+#print(cpt_speechiness)
+#print(cpt_acousticness)
+#print(cpt_instrumentalness)
+#print(cpt_liveness)
+#print(cpt_valence)
+#print(cpt_tempo)
+#print(cpt_time_signature)
+#print(cpt_duration_ms)
+
+```
+
+
+```{r}
+# Make predictions for a variable
+cpt_track_pop <- predict(fitted_bn, data = tiktok, node = "loudness")
+print(cpt_track_pop)
+
+```
+
+Splitting data into train test
+```{r}
+set.seed(10)
+train_index <- sample(1:nrow(tiktok), 0.8 * nrow(tiktok))
+train_data <- tiktok[train_index, ]
+test_data <- tiktok[-train_index, ]
+
+```
+
+
+let's use a Generalized Linear Model (GLM) with a Poisson family, as it is a popular likelihood-based method for modeling count data, and we can treat 'track_pop' as a count variable.
+```{r}
+poisson_model <- glm(track_pop ~ loudness + energy + duration_ms, data = train_data, family = "poisson")
+summary(poisson_model)
+
+```
+
+
+```{r}
+test_data$predicted_track_pop <- exp(predict(poisson_model, newdata = test_data))
+
+```
+
+
+```{r}
+MAE <- mean(abs(test_data$predicted_track_pop - test_data$track_pop))
+MSE <- mean((test_data$predicted_track_pop - test_data$track_pop)^2)
+pseudo_R_squared <- 1 - (sum((test_data$predicted_track_pop - test_data$track_pop)^2) / sum((test_data$track_pop - mean(test_data$track_pop))^2))
+
+cat("Mean Absolute Error:", MAE, "\n")
+cat("Mean Squared Error:", MSE, "\n")
+cat("Pseudo R-squared:", pseudo_R_squared, "\n")
+
+```
+
+    Mean Absolute Error (MAE): 16.38642
+    MAE measures the average magnitude of the errors in a set of predictions, without considering their direction. It is the average of the absolute differences between the predicted and actual values. In this case, the average absolute error between the predicted and actual track_pop values is 16.38642. The lower the MAE, the better the model's performance.
+
+    Mean Squared Error (MSE): 408.0384
+    MSE measures the average squared difference between the predicted and actual values. It is the average of the squared differences between the predictions and the actual values. In this case, the average squared error between the predicted and actual track_pop values is 408.0384. Like MAE, a lower MSE indicates a better model performance.
+
+    Pseudo R-squared: -0.08363258
+    The Pseudo R-squared value is a measure of goodness-of-fit for models like the Poisson regression, where the usual R-squared value isn't applicable. It indicates the proportion of variance explained by the model, with values ranging from 0 to 1. A higher value indicates a better model fit. However, in this case, the Pseudo R-squared value is negative (-0.08363258), which is unusual and suggests that the model is not a good fit for the data. This could be due to various reasons such as the choice of predictor variables, the model assumptions not being met, or the presence of outliers in the data.
+    
+```{r}
+# Fit a GLM with a Gaussian distribution
+gaussian_model <- glm(track_pop ~ loudness + energy + duration_ms, family = "gaussian", data = tiktok)
+
+# Display the model summary
+summary(gaussian_model)
+
+```
+
+
+```{r}
+test_data$predictions <- predict(gaussian_model, newdata = test_data)
+```
+
+```{r}
+# Load the Metrics package for performance evaluation
+install.packages("Metrics")
+library(Metrics)
+
+# Calculate Mean Absolute Error (MAE)
+mae <- mae(test_data$track_pop, test_data$predictions)
+cat("Mean Absolute Error:", mae, "\n")
+
+# Calculate Mean Squared Error (MSE)
+mse <- mse(test_data$track_pop, test_data$predictions)
+cat("Mean Squared Error:", mse, "\n")
+
+#
+
+```
+    Mean Absolute Error (MAE): The MAE measures the average difference between the predicted track popularity and the actual track popularity. In this case, the MAE is 16.45187, which means that on average, the predictions made by the model are about 16.45 units away from the actual track popularity values.
+
+    Mean Squared Error (MSE): The MSE measures the average squared difference between the predicted and actual track popularity values. The MSE is 390.6688, which means that the average of the squared differences between the predictions and the actual values is 390.67. Squaring the differences has the effect of emphasizing larger errors, so a high MSE indicates that the model might be making some significantly large errors in its predictions.
+    
+```{r}
+# Fit a Gamma GLM model
+gamma_glm <- glm(track_pop ~ loudness + energy + duration_ms, family = Gamma(link = "log"), data = train_data)
+summary(gamma_glm)
+
+```
+
+```{r}
+# Fit an Inverse Gaussian GLM model
+inv_gaussian_glm <- glm(track_pop ~ loudness + energy + duration_ms, family = inverse.gaussian(link = "log"), data = train_data)
+summary(inv_gaussian_glm)
+```
+
+
